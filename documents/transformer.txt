@@ -1,0 +1,24 @@
+Transformer是由Google在2017年提出的一种新型深度学习架构，它完全基于自注意力机制（Self-Attention），摒弃了传统的循环神经网络（RNN）结构。
+
+Transformer的主要特点包括：
+
+1. 自注意力机制：能够同时关注输入序列的所有位置，捕捉长距离依赖关系
+2. 多头注意力：通过多个注意力头并行计算，捕捉不同类型的语义关系
+3. 位置编码：为输入序列添加位置信息，弥补没有循环结构的缺陷
+4. 编码器-解码器结构：编码器处理输入序列，解码器生成输出序列
+5. 残差连接和层归一化：加速训练过程，提高模型稳定性
+
+Transformer架构的核心组件包括：
+- Multi-Head Attention（多头注意力）
+- Feed-Forward Neural Network（前馈神经网络）
+- Layer Normalization（层归一化）
+- Residual Connection（残差连接）
+
+自注意力机制的计算过程包括三个关键向量：
+- Query（查询向量）
+- Key（键向量）
+- Value（值向量）
+
+通过计算Query和Key的相似度，得到注意力权重，然后对Value进行加权求和，得到注意力输出。
+
+Transformer的出现彻底改变了NLP领域，BERT、GPT、T5等著名模型都基于Transformer架构。它不仅在NLP任务上取得了优异成绩，也被广泛应用于计算机视觉、语音识别等领域。
