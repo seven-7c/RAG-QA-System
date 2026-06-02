@@ -20,3 +20,4 @@ build/
 *.spec
 .streamlit/secrets.toml
 .streamlit/.credentials
+.streamlit/config.toml
