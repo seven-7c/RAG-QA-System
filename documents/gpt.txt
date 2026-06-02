@@ -1,0 +1,26 @@
+GPT（Generative Pre-trained Transformer）是OpenAI提出的生成式预训练语言模型。
+
+GPT的发展历程：
+- GPT-1（2018）：12层Transformer解码器，117M参数
+- GPT-2（2019）：12-48层Transformer解码器，1.5B参数，零样本学习能力
+- GPT-3（2020）：96层Transformer解码器，175B参数，强大的少样本学习能力
+- GPT-4（2023）：多模态能力，支持文本和图像输入
+
+GPT的核心特点：
+1. 仅使用Transformer解码器结构
+2. 采用自回归语言建模目标
+3. 通过预测下一个Token进行训练
+4. 具有强大的生成能力和上下文理解能力
+
+GPT的预训练目标是预测序列中的下一个Token，这使得模型能够学习到语言的概率分布。
+
+GPT的应用场景包括：
+- 文本生成
+- 对话系统
+- 代码生成
+- 摘要生成
+- 翻译
+
+GPT通过少样本学习（Few-shot Learning）和零样本学习（Zero-shot Learning）能够在不进行微调的情况下完成各种任务。
+
+GPT的成功推动了大语言模型的发展，成为当今NLP领域的重要研究方向。
