@@ -1,9 +1,10 @@
 import streamlit as st
 import os
 import tempfile
+import subprocess
 from document_loader import load_document, build_vector_db, get_retriever, query_similar_documents
 from rag_chain import build_rag_chain, get_answer
-from config import VECTOR_DB_PATH, DOCUMENTS_FOLDER
+from config import VECTOR_DB_PATH, DOCUMENTS_FOLDER, MODEL_NAME
 
 st.set_page_config(page_title="RAG智能问答系统", page_icon="📚", layout="wide")
 
@@ -32,9 +33,27 @@ def count_chunks():
             return 0
     return 0
 
+def check_ollama_status():
+    try:
+        result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return True, "Ollama服务正常运行"
+        else:
+            return False, f"Ollama命令执行失败: {result.stderr}"
+    except FileNotFoundError:
+        return False, "Ollama未安装，请先安装Ollama"
+    except Exception as e:
+        return False, f"检查Ollama状态失败: {str(e)}"
+
 init_session_state()
 
+ollama_available, ollama_msg = check_ollama_status()
+
 st.title("📚 RAG智能问答系统")
+
+if not ollama_available:
+    st.warning(f"⚠️ {ollama_msg}")
+    st.info("请先安装Ollama并运行 `ollama pull deepseek-r1:7b` 和 `ollama pull nomic-embed-text`")
 
 with st.sidebar:
     st.header("知识库管理")
@@ -47,36 +66,94 @@ with st.sidebar:
     
     if st.button("📥 构建知识库"):
         if uploaded_files:
+            st.info(f"检测到 {len(uploaded_files)} 个上传文件")
             with st.spinner("正在处理文档..."):
                 documents = []
                 filenames = []
+                tmp_files = []
                 
-                for uploaded_file in uploaded_files:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp:
-                        tmp.write(uploaded_file.read())
-                        tmp_path = tmp.name
-                    
-                    try:
-                        text = load_document(tmp_path)
-                        if text.strip():
-                            documents.append(text)
-                            filenames.append(uploaded_file.name)
-                            st.session_state.uploaded_files.append(uploaded_file.name)
-                        os.unlink(tmp_path)
-                    except Exception as e:
-                        st.error(f"处理 {uploaded_file.name} 失败: {e}")
-                        os.unlink(tmp_path)
+                try:
+                    for idx, uploaded_file in enumerate(uploaded_files):
+                        st.info(f"正在处理文件 {idx+1}/{len(uploaded_files)}: {uploaded_file.name}")
+                        file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+                        file_bytes = uploaded_file.read()
+                        file_size = len(file_bytes)
+                        uploaded_file.seek(0)
+                        st.info(f"文件大小: {file_size} 字节, 扩展名: {file_ext}")
+                        
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext, mode='wb') as tmp:
+                            tmp.write(file_bytes)
+                            tmp_path = tmp.name
+                            tmp_files.append(tmp_path)
+                        
+                        try:
+                            text = load_document(tmp_path)
+                            st.info(f"读取到文本长度: {len(text)} 字符")
+                            if text.strip():
+                                documents.append(text)
+                                filenames.append(uploaded_file.name)
+                                if uploaded_file.name not in st.session_state.uploaded_files:
+                                    st.session_state.uploaded_files.append(uploaded_file.name)
+                                st.success(f"✅ 成功处理: {uploaded_file.name}")
+                            else:
+                                st.warning(f"文件内容为空: {uploaded_file.name}")
+                        except Exception as e:
+                            st.error(f"处理 {uploaded_file.name} 失败: {str(e)}")
+                
+                finally:
+                    for tmp_path in tmp_files:
+                        try:
+                            if os.path.exists(tmp_path):
+                                os.unlink(tmp_path)
+                        except Exception as e:
+                            st.warning(f"删除临时文件失败: {e}")
+                
+                st.info(f"成功解析 {len(documents)} 份文档")
                 
                 if documents:
-                    build_vector_db(documents, filenames)
                     st.session_state.db_initialized = True
-                    st.session_state.chunk_count = count_chunks()
-                    st.success(f"成功处理 {len(documents)} 份文档")
-                    st.session_state.rag_chain = build_rag_chain()
+                    st.session_state.chunk_count = sum(len(doc) // 1000 + 1 for doc in documents)
+                    st.success(f"🎉 成功处理 {len(documents)} 份文档")
+                    st.info(f"文件名: {', '.join(filenames)}")
+                    
+                    if ollama_available:
+                        try:
+                            st.info("正在构建向量数据库...")
+                            build_vector_db(documents, filenames)
+                            st.success("✅ 向量数据库构建成功")
+                            st.session_state.chunk_count = count_chunks()
+                            try:
+                                st.session_state.rag_chain = build_rag_chain()
+                                st.success("✅ RAG链构建成功")
+                            except Exception as e:
+                                st.warning(f"RAG链构建失败: {str(e)}")
+                        except Exception as e:
+                            st.error(f"构建知识库失败: {str(e)}")
+                    else:
+                        st.warning("⚠️ Ollama未安装，跳过向量数据库构建")
                 else:
                     st.warning("没有成功加载任何文档")
         else:
             st.warning("请先上传文档")
+    
+    if st.button("📖 使用预置文档初始化"):
+        with st.spinner("正在加载预置文档..."):
+            try:
+                from document_loader import load_documents_from_folder
+                
+                documents, filenames = load_documents_from_folder(DOCUMENTS_FOLDER)
+                
+                if documents:
+                    build_vector_db(documents, filenames)
+                    st.session_state.uploaded_files = filenames
+                    st.session_state.db_initialized = True
+                    st.session_state.chunk_count = count_chunks()
+                    st.success(f"成功加载 {len(documents)} 份预置文档")
+                    st.session_state.rag_chain = build_rag_chain()
+                else:
+                    st.warning("未找到预置文档")
+            except Exception as e:
+                st.error(f"加载预置文档失败: {str(e)}")
     
     if st.button("🗑️ 清空知识库"):
         import shutil
